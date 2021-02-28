@@ -1,0 +1,21 @@
+{
+  "name": "channel-line",
+  "fullName": "Channel - LINE",
+  "version": "0.1.0",
+  "description": "A Botpress connector for LINE.",
+  "private": true,
+  "main": "dist/backend/index.js",
+  "author": "Masayuki Nakamura",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "node ../../build/module-builder/bin/entry build",
+    "watch": "node ../../build/module-builder/bin/entry watch",
+    "package": "node ../../build/module-builder/bin/entry package"
+  },
+  "devDependencies": {
+    "@types/node": "^10.10.3"
+  },
+  "dependencies": {
+    "@line/bot-sdk": "^7.2.0"
+  }
+}
