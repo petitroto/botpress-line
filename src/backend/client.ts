@@ -12,6 +12,8 @@ const debugOutgoing = debug.sub('outgoing')
 
 export const MIDDLEWARE_NAME = 'line.sendMessage'
 
+const outgoingTypes = ['typing', 'text', 'file', 'carousel']
+
 export class LineClient {
   private logger: sdk.Logger
   private lineClient: line.Client
@@ -62,6 +64,10 @@ export class LineClient {
         } else {
           // TODO: implement handlers for other types of message
         }
+      } else if (event.type === 'postback') {
+        const postback: line.Postback = event.postback
+        const payload = JSON.parse(postback.data)
+        await this.sendIncomingEvent(bot.botId, 'text', payload, event.source.userId)
       } else {
         // TODO: implement handlers for other types of event
       }
@@ -82,25 +88,98 @@ export class LineClient {
   }
 
   async handleOutgoingEvent(event: sdk.IO.Event, next: sdk.IO.MiddlewareNextCallback) {
-    const payload = event.payload
-
-    if (payload.type === 'text') {
-      await this.sendMessage(event, {
-        type: 'text',
-        text: payload.text
-      })
+    const messageType = event.type === 'default' ? 'text' : event.type
+    if (!_.includes(outgoingTypes, messageType)) {
+      return next(new Error('Unsupported event type: ' + event.type))
+    }
+    if (messageType === 'typing') {
+      // nothing to do
+    } else if (event.payload.quick_replies) {
+      await this.sendSingleChoiceMessage(event)
+    } else if (messageType === 'text') {
+      await this.sendTextMessage(event)
+    } else if (messageType === 'file') {
+      await this.sendImageMessage(event)
+    } else if (messageType === 'carousel') {
+      await this.sendCarouselMessage(event)
+    } else {
+      // unsupported other types of event
     }
     next(undefined, false)
   }
 
-  async sendMessage(event: sdk.IO.Event, args: any) {
+  async sendSingleChoiceMessage(event) {
+    await this.sendMessage(event, {
+      type: 'text',
+      text: event.payload.text,
+      quickReply: {
+        items: event.payload.quick_replies.map(choice => {
+          return {
+            type: 'action',
+            action: {
+              type: 'postback',
+              label: choice.title,
+              data: JSON.stringify({
+                type: 'quick_reply',
+                text: choice.title,
+                payload: choice.payload
+              }),
+              displayText: choice.title
+            }
+          }
+        })
+      }
+    })
+  }
 
+  async sendTextMessage(event) {
+    await this.sendMessage(event, {
+      type: 'text',
+      text: event.payload.text
+    })
+  }
+
+  async sendImageMessage(event) {
+    await this.sendMessage(event, {
+      type: 'image',
+      text: event.payload.text,
+      originalContentUrl: event.payload.url,
+      previewImageUrl: event.payload.url // TODO: generate preview image by resizing original one
+    })
+  }
+
+  async sendCarouselMessage(event) {
+    await this.sendMessage(event, {
+      type: 'template',
+      altText: 'this is a carousel template',
+      template: {
+        type: 'carousel',
+        columns: event.payload.elements.map(element => {
+          return {
+            thumbnailImageUrl: element.picture,
+            imageBackgroundColor: '#FFFFFF',
+            title: element.title,
+            text: element.subtitle,
+            actions: element.buttons.map(button => {
+              return {
+                type: 'message',
+                label: button.title,
+                text: button.title
+              }
+            })
+          }
+        }),
+        imageAspectRatio: 'rectangle',
+        imageSize: 'cover'
+      }
+    })
+  }
+
+  async sendMessage(event: sdk.IO.Event, args: any) {
     const message: any = {
       ...args
     }
-
     debugOutgoing('Sending message', message)
-
     return this.lineClient.pushMessage(event.target, message)
   }
 }
