@@ -1,7 +1,7 @@
 {
   "name": "channel-line",
   "fullName": "Channel - LINE",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "A Botpress connector for LINE.",
   "private": true,
   "main": "dist/backend/index.js",

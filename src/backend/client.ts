@@ -12,7 +12,7 @@ const debugOutgoing = debug.sub('outgoing')
 
 export const MIDDLEWARE_NAME = 'line.sendMessage'
 
-const outgoingTypes = ['typing', 'text', 'file', 'carousel']
+const outgoingTypes = ['typing', 'text', 'single-choice', 'image', 'carousel']
 
 export class LineClient {
   private logger: sdk.Logger
@@ -94,11 +94,11 @@ export class LineClient {
     }
     if (messageType === 'typing') {
       // nothing to do
-    } else if (event.payload.quick_replies) {
-      await this.sendSingleChoiceMessage(event)
     } else if (messageType === 'text') {
       await this.sendTextMessage(event)
-    } else if (messageType === 'file') {
+    } else if (messageType === 'single-choice') {
+      await this.sendSingleChoiceMessage(event)
+    } else if (messageType === 'image') {
       await this.sendImageMessage(event)
     } else if (messageType === 'carousel') {
       await this.sendCarouselMessage(event)
@@ -113,7 +113,7 @@ export class LineClient {
       type: 'text',
       text: event.payload.text,
       quickReply: {
-        items: event.payload.quick_replies.map(choice => {
+        items: event.payload.choices.map(choice => {
           return {
             type: 'action',
             action: {
@@ -122,7 +122,7 @@ export class LineClient {
               data: JSON.stringify({
                 type: 'quick_reply',
                 text: choice.title,
-                payload: choice.payload
+                payload: choice.value
               }),
               displayText: choice.title
             }
@@ -140,11 +140,12 @@ export class LineClient {
   }
 
   async sendImageMessage(event) {
+    const imageUrl = process.EXTERNAL_URL + event.payload.image
     await this.sendMessage(event, {
       type: 'image',
-      text: event.payload.text,
-      originalContentUrl: event.payload.url,
-      previewImageUrl: event.payload.url // TODO: generate preview image by resizing original one
+      text: event.payload.title,
+      originalContentUrl: imageUrl,
+      previewImageUrl: imageUrl // TODO: generate preview image by resizing original one
     })
   }
 
@@ -154,13 +155,14 @@ export class LineClient {
       altText: 'this is a carousel template',
       template: {
         type: 'carousel',
-        columns: event.payload.elements.map(element => {
+        columns: event.payload.items.map(element => {
+          const imageUrl = process.EXTERNAL_URL + element.image
           return {
-            thumbnailImageUrl: element.picture,
+            thumbnailImageUrl: imageUrl,
             imageBackgroundColor: '#FFFFFF',
             title: element.title,
             text: element.subtitle,
-            actions: element.buttons.map(button => {
+            actions: element.actions.map(button => {
               return {
                 type: 'message',
                 label: button.title,
